@@ -6,7 +6,10 @@ import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import { useYjsProvider } from '../hooks/useYjsProvider'
 import { useContributionTracker } from '../hooks/useContributionTracker'
+import { useChat } from '../hooks/useChat'
+import { useIdentity } from '../hooks/useIdentity'
 import ContributionPanel from './ContributionPanel'
+import ChatPanel from './ChatPanel'
 import type * as Y from 'yjs'
 import type { WebsocketProvider } from 'y-websocket'
 
@@ -26,17 +29,13 @@ function randomColor(): string {
 }
 
 export default function Editor() {
-  const [userName] = useState(
-    () => `User-${Math.floor(Math.random() * 1000)}`
-  )
-  const [userColor] = useState(() => randomColor())
+  const { userId, name: userName, color: userColor } = useIdentity()
 
   const { ydoc, provider, connected } = useYjsProvider(
     ROOM_ID,
     userName,
     userColor
   )
-
   return (
     <div className="min-h-screen flex flex-col bg-[#0a0a0f]">
       <header className="border-b border-gray-800 bg-gray-950 px-6 py-3 flex items-center justify-between">
@@ -59,9 +58,10 @@ export default function Editor() {
           Connecting to room…
         </div>
       ) : (
-        <EditorInner
+               <EditorInner
           ydoc={ydoc}
           provider={provider}
+          userId={userId}
           userName={userName}
           userColor={userColor}
         />
@@ -69,29 +69,38 @@ export default function Editor() {
     </div>
   )
 }
-
-// ----- Inner editor -----
-
 interface EditorInnerProps {
   ydoc: Y.Doc
   provider: WebsocketProvider
+  userId: string
   userName: string
   userColor: string
 }
+type SidebarTab = 'contribution' | 'chat'
 
 function EditorInner({
   ydoc,
   provider,
+  userId,
   userName,
   userColor,
 }: EditorInnerProps) {
+   const myClientId = userId
+
   const { contributions, recordTyping } = useContributionTracker(
     ydoc,
     userName,
     userColor
   )
+  const { messages, sendMessage } = useChat(
+    ydoc,
+    myClientId,
+    userName,
+    userColor
+  )
 
-  // A ProseMirror plugin that counts characters inserted on LOCAL edits only.
+  const [tab, setTab] = useState<SidebarTab>('contribution')
+
   const contributionExtension = useMemo(() => {
     return Extension.create({
       name: 'contributionTracker',
@@ -101,7 +110,6 @@ function EditorInner({
             appendTransaction(transactions) {
               for (const tr of transactions) {
                 if (!tr.docChanged) continue
-                // Skip Yjs-originated (remote) updates — only count local edits
                 if ((tr as any).getMeta('y-sync$') !== undefined) continue
 
                 let inserted = 0
@@ -116,7 +124,6 @@ function EditorInner({
                 })
 
                 if (inserted > 0) {
-                  // defer to avoid "setState during render"
                   Promise.resolve().then(() => recordTyping(inserted))
                 }
               }
@@ -229,15 +236,62 @@ function EditorInner({
         </div>
       </div>
 
-      {/* Right sidebar — contributions */}
-      <aside className="w-72 border-l border-gray-800 bg-gray-950 overflow-y-auto flex-shrink-0">
-        <ContributionPanel contributions={contributions} />
+      {/* Right sidebar */}
+      <aside className="w-80 border-l border-gray-800 bg-gray-950 flex flex-col flex-shrink-0">
+        {/* Tabs */}
+        <div className="flex border-b border-gray-800 flex-shrink-0">
+          <TabButton
+            active={tab === 'contribution'}
+            onClick={() => setTab('contribution')}
+            label="Contribution"
+          />
+          <TabButton
+            active={tab === 'chat'}
+            onClick={() => setTab('chat')}
+            label={`Chat${messages.length > 0 ? ` (${messages.length})` : ''}`}
+          />
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-hidden">
+          {tab === 'contribution' ? (
+            <div className="h-full overflow-y-auto">
+              <ContributionPanel contributions={contributions} />
+            </div>
+          ) : (
+            <ChatPanel
+              messages={messages}
+              onSend={sendMessage}
+              myClientId={myClientId}
+            />
+          )}
+        </div>
       </aside>
     </div>
   )
 }
 
-// ----- Toolbar button -----
+interface TabButtonProps {
+  active: boolean
+  onClick: () => void
+  label: string
+}
+
+function TabButton({ active, onClick, label }: TabButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+        active
+          ? 'text-cyan-400 border-b-2 border-cyan-400'
+          : 'text-gray-500 hover:text-gray-300 border-b-2 border-transparent'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
 
 interface ToolbarButtonProps {
   onClick: () => void

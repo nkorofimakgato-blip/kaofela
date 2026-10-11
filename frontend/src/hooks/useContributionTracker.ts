@@ -9,6 +9,7 @@ export interface Contribution {
   activeMs: number
   percentage: number
   isMe: boolean
+  lastActiveAt: number
 }
 
 interface ContributionEntry {
@@ -37,18 +38,19 @@ export function useContributionTracker(
       const list: Contribution[] = []
       let totalChars = 0
 
-      map.forEach((value, key) => {
-        totalChars += value.insertedChars
-        list.push({
-          clientId: key,
-          name: value.name,
-          color: value.color,
-          insertedChars: value.insertedChars,
-          activeMs: value.activeMs,
-          percentage: 0,
-          isMe: key === myClientId,
-        })
-      })
+     map.forEach((value, key) => {
+  totalChars += value.insertedChars
+  list.push({
+    clientId: key,
+    name: value.name,
+    color: value.color,
+    insertedChars: value.insertedChars,
+    activeMs: value.activeMs,
+    percentage: 0,
+    isMe: key === myClientId,
+    lastActiveAt: value.lastActiveAt,
+  })
+})
 
       list.forEach((c) => {
         c.percentage =

@@ -9,19 +9,19 @@ import { useContributionTracker } from '../hooks/useContributionTracker'
 import { useChat } from '../hooks/useChat'
 import { useIdentity } from '../hooks/useIdentity'
 import { useAiChat } from '../hooks/useAiChat'
+import { useRoomId } from '../hooks/useRoomId'
 import ContributionPanel from './ContributionPanel'
 import ChatPanel from './ChatPanel'
 import AiPanel from './AiPanel'
 import type * as Y from 'yjs'
 import type { WebsocketProvider } from 'y-websocket'
 
-const ROOM_ID = 'demo-room'
-
 export default function Editor() {
   const { userId, name: userName, color: userColor } = useIdentity()
+  const roomId = useRoomId()
 
   const { ydoc, provider, connected } = useYjsProvider(
-    ROOM_ID,
+    roomId,
     userName,
     userColor
   )
@@ -31,9 +31,20 @@ export default function Editor() {
       <header className="border-b border-gray-800 bg-gray-950 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-bold text-cyan-400">Kaofela</h1>
-          <span className="text-xs text-gray-500">Room: {ROOM_ID}</span>
+          <span className="text-xs text-gray-500">Room: {roomId}</span>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`
+              navigator.clipboard.writeText(url)
+            }}
+            className="text-[11px] text-gray-400 hover:text-cyan-400 border border-gray-800 hover:border-cyan-400/40 rounded px-2 py-1 transition-colors"
+            title="Copy room link"
+          >
+            Copy link
+          </button>
           <span className="text-xs text-gray-400">You are: {userName}</span>
           <div
             className={`w-2 h-2 rounded-full ${

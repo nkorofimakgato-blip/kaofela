@@ -1,5 +1,6 @@
 package com.kaofela.backend.ws;
 
+import com.kaofela.backend.service.RoomUpdateService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -10,6 +11,7 @@ import org.springframework.web.socket.handler.BinaryWebSocketHandler;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,7 +21,19 @@ public class YjsWebSocketHandler extends BinaryWebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(YjsWebSocketHandler.class);
 
+    // y-websocket protocol:
+    //   byte 0 = message type (0 = sync, 1 = awareness, 3 = query awareness, ...)
+    //   byte 1 = sync subtype (0 = step1, 1 = step2, 2 = update)
+    private static final int MSG_SYNC = 0;
+    private static final int SYNC_STEP2 = 1;
+    private static final int SYNC_UPDATE = 2;
+
     private final Map<String, Set<WebSocketSession>> rooms = new ConcurrentHashMap<>();
+    private final RoomUpdateService roomUpdateService;
+
+    public YjsWebSocketHandler(RoomUpdateService roomUpdateService) {
+        this.roomUpdateService = roomUpdateService;
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -31,8 +45,26 @@ public class YjsWebSocketHandler extends BinaryWebSocketHandler {
         }
 
         rooms.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(session);
-        log.info("[room={}] Client connected: {} (total in room: {})",
-                roomId, session.getId(), rooms.get(roomId).size());
+
+        // Replay stored updates to this new client BEFORE any peer traffic.
+        // Yjs merges these into its local state — the client effectively
+        // "catches up" to where the room was when the last person left.
+        List<byte[]> history = roomUpdateService.loadUpdates(roomId);
+        for (byte[] msg : history) {
+            if (!session.isOpen()) break;
+            try {
+                synchronized (session) {
+                    session.sendMessage(new BinaryMessage(msg));
+                }
+            } catch (IOException e) {
+                log.warn("[room={}] Failed to replay to {}: {}",
+                        roomId, session.getId(), e.getMessage());
+                break;
+            }
+        }
+
+        log.info("[room={}] Client connected: {} (total in room: {}), replayed {} updates",
+                roomId, session.getId(), rooms.get(roomId).size(), history.size());
     }
 
     @Override
@@ -43,6 +75,13 @@ public class YjsWebSocketHandler extends BinaryWebSocketHandler {
         ByteBuffer payload = message.getPayload();
         byte[] bytes = new byte[payload.remaining()];
         payload.get(bytes);
+
+        // Persist only sync messages carrying Yjs update bytes (step2 or update).
+        // Awareness (cursor) messages and step1 (state-vector requests) are ephemeral
+        // and must not be replayed to future clients.
+        if (isPersistableUpdate(bytes)) {
+            roomUpdateService.append(roomId, bytes);
+        }
 
         log.debug("[room={}] Received {} bytes from {}",
                 roomId, bytes.length, session.getId());
@@ -71,6 +110,13 @@ public class YjsWebSocketHandler extends BinaryWebSocketHandler {
                 log.info("[room={}] Room removed (no clients)", roomId);
             }
         }
+    }
+
+    private boolean isPersistableUpdate(byte[] bytes) {
+        if (bytes.length < 2) return false;
+        int type = bytes[0] & 0xFF;
+        int subtype = bytes[1] & 0xFF;
+        return type == MSG_SYNC && (subtype == SYNC_STEP2 || subtype == SYNC_UPDATE);
     }
 
     private void broadcast(String roomId, WebSocketSession sender, byte[] bytes) {

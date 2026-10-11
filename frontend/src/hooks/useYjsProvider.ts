@@ -28,11 +28,15 @@ export function useYjsProvider(
 
     const doc = new Y.Doc()
 
-    const ws = new WebsocketProvider(
+      const ws = new WebsocketProvider(
       'ws://localhost:8080/ws',
       roomId,
       doc,
-      { connect: true }
+      {
+        connect: true,
+        // y-websocket v3 sometimes needs these disabled for custom paths
+        disableBc: false,
+      }
     )
 
     // Set user info — used for awareness/cursors in Phase 4

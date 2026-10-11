@@ -1,21 +1,33 @@
-# Node
+# Dependencies
 node_modules/
+**/node_modules/
+
+# Build output
 dist/
-*.log
-
-# Java / Maven
+build/
 target/
-*.class
+**/target/
 
-# IDE
-.vscode/
-.idea/
-*.iml
+# H2 local database
+data/
+**/data/
+*.mv.db
+*.trace.db
 
-# Env
+# Environment & secrets
 .env
 .env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.iml
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

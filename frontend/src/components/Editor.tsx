@@ -1,19 +1,52 @@
+import { useMemo } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import Collaboration from '@tiptap/extension-collaboration'
+import CollaborationCaret from '@tiptap/extension-collaboration-caret'
+import { useYjsProvider } from '../hooks/useYjsProvider'
+
+const ROOM_ID = 'demo-room'
+const USER_NAME = `User-${Math.floor(Math.random() * 1000)}`
 
 export default function Editor() {
-  const editor = useEditor({
-    extensions: [StarterKit],
-    content: `
-      <h1>Welcome to Kaofela 👋</h1>
-      <p>This is a rich-text editor. Try typing, using <strong>bold</strong>, <em>italic</em>, and headings.</p>
-      <ul>
-        <li>Bullet lists work</li>
-        <li>So do numbered lists</li>
-      </ul>
-      <blockquote>Real-time collaboration comes next.</blockquote>
-    `,
-  })
+  const { ydoc, provider, connected } = useYjsProvider(ROOM_ID, USER_NAME)
+
+  const extensions = useMemo(() => {
+    if (!ydoc || !provider) return []
+
+    return [
+      StarterKit.configure({
+        // Disable TipTap's built-in history — Yjs handles undo/redo
+        history: false,
+      }),
+      Collaboration.configure({
+        document: ydoc,
+      }),
+      CollaborationCaret.configure({
+        provider,
+        user: {
+          name: USER_NAME,
+          color: '#22d3ee',
+        },
+      }),
+    ]
+  }, [ydoc, provider])
+
+  const editor = useEditor(
+    {
+      extensions,
+      immediatelyRender: false,
+    },
+    [extensions]
+  )
+
+  if (!ydoc || !provider) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] text-gray-500">
+        Connecting to room…
+      </div>
+    )
+  }
 
   if (!editor) return null
 
@@ -21,8 +54,20 @@ export default function Editor() {
     <div className="min-h-screen flex flex-col bg-[#0a0a0f]">
       {/* Header */}
       <header className="border-b border-gray-800 bg-gray-950 px-6 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-bold text-cyan-400">Kaofela</h1>
-        <span className="text-xs text-gray-500">Rich-text editor preview</span>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold text-cyan-400">Kaofela</h1>
+          <span className="text-xs text-gray-500">Room: {ROOM_ID}</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400">You are: {USER_NAME}</span>
+          <div
+            className={`w-2 h-2 rounded-full ${
+              connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'
+            }`}
+            title={connected ? 'Connected' : 'Disconnected'}
+          />
+        </div>
       </header>
 
       {/* Toolbar */}

@@ -8,13 +8,6 @@ interface UseYjsProviderResult {
   connected: boolean
 }
 
-/**
- * Creates a Yjs document + WebSocket connection for a given room.
- * Returns null until the provider is ready.
- *
- * @param roomId   The room/document name. Same room = shared doc.
- * @param userName Display name for cursors (used in Phase 4).
- */
 export function useYjsProvider(
   roomId: string,
   userName: string,
@@ -25,59 +18,54 @@ export function useYjsProvider(
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    console.log('[yjs] creating doc for room:', roomId)
+    let disposed = false
+    let doc: Y.Doc | null = null
+    let ws: WebsocketProvider | null = null
 
-    const doc = new Y.Doc()
+    // Delay the connection slightly so React StrictMode's dev-mode
+    // double-mount doesn't create-then-immediately-destroy a socket.
+    const timer = setTimeout(() => {
+      if (disposed) return
 
-      const ws = new WebsocketProvider(
-      'ws://localhost:8080/ws',
-      roomId,
-      doc,
-      {
-        connect: true,
-        // y-websocket v3 sometimes needs these disabled for custom paths
-        disableBc: false,
-      }
-    )
+      console.log('[yjs] creating doc for room:', roomId)
 
-    // Set user info — used for awareness/cursors in Phase 4
-        ws.awareness.setLocalStateField('user', {
-      name: userName,
-      color: userColor,
-    })
+      doc = new Y.Doc()
+      ws = new WebsocketProvider(
+        'ws://localhost:8080/ws',
+        roomId,
+        doc,
+        { connect: true }
+      )
 
-    ws.on('status', (event: { status: string }) => {
-      console.log('[yjs] status:', event.status)
-      setConnected(event.status === 'connected')
-    })
+      ws.awareness.setLocalStateField('user', {
+        name: userName,
+        color: userColor,
+      })
 
-    ws.on('sync', (isSynced: boolean) => {
-      console.log('[yjs] synced:', isSynced)
-    })
+      ws.on('status', (event: { status: string }) => {
+        console.log('[yjs] status:', event.status)
+        if (!disposed) setConnected(event.status === 'connected')
+      })
 
-    setYdoc(doc)
-    setProvider(ws)
+      ws.on('sync', (isSynced: boolean) => {
+        console.log('[yjs] synced:', isSynced)
+      })
+
+      setYdoc(doc)
+      setProvider(ws)
+    }, 50)
 
     return () => {
-      console.log('[yjs] cleaning up room:', roomId)
-      ws.disconnect()
-      ws.destroy()
-      doc.destroy()
+      disposed = true
+      clearTimeout(timer)
+      if (ws) {
+        console.log('[yjs] cleaning up room:', roomId)
+        ws.disconnect()
+        ws.destroy()
+      }
+      if (doc) doc.destroy()
     }
-    }, [roomId, userName, userColor])
+  }, [roomId, userName, userColor])
 
   return { ydoc, provider, connected }
-}
-
-function randomColor(): string {
-  const palette = [
-    '#22d3ee', // cyan
-    '#a78bfa', // violet
-    '#f472b6', // pink
-    '#34d399', // emerald
-    '#fbbf24', // amber
-    '#fb7185', // rose
-    '#60a5fa', // blue
-  ]
-  return palette[Math.floor(Math.random() * palette.length)]
 }

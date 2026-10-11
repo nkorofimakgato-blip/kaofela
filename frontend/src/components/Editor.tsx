@@ -8,25 +8,14 @@ import { useYjsProvider } from '../hooks/useYjsProvider'
 import { useContributionTracker } from '../hooks/useContributionTracker'
 import { useChat } from '../hooks/useChat'
 import { useIdentity } from '../hooks/useIdentity'
+import { useAiChat } from '../hooks/useAiChat'
 import ContributionPanel from './ContributionPanel'
 import ChatPanel from './ChatPanel'
+import AiPanel from './AiPanel'
 import type * as Y from 'yjs'
 import type { WebsocketProvider } from 'y-websocket'
 
 const ROOM_ID = 'demo-room'
-
-function randomColor(): string {
-  const palette = [
-    '#22d3ee',
-    '#a78bfa',
-    '#f472b6',
-    '#34d399',
-    '#fbbf24',
-    '#fb7185',
-    '#60a5fa',
-  ]
-  return palette[Math.floor(Math.random() * palette.length)]
-}
 
 export default function Editor() {
   const { userId, name: userName, color: userColor } = useIdentity()
@@ -36,6 +25,7 @@ export default function Editor() {
     userName,
     userColor
   )
+
   return (
     <div className="min-h-screen flex flex-col bg-[#0a0a0f]">
       <header className="border-b border-gray-800 bg-gray-950 px-6 py-3 flex items-center justify-between">
@@ -58,7 +48,7 @@ export default function Editor() {
           Connecting to room…
         </div>
       ) : (
-               <EditorInner
+        <EditorInner
           ydoc={ydoc}
           provider={provider}
           userId={userId}
@@ -69,6 +59,7 @@ export default function Editor() {
     </div>
   )
 }
+
 interface EditorInnerProps {
   ydoc: Y.Doc
   provider: WebsocketProvider
@@ -76,7 +67,8 @@ interface EditorInnerProps {
   userName: string
   userColor: string
 }
-type SidebarTab = 'contribution' | 'chat'
+
+type SidebarTab = 'contribution' | 'chat' | 'ai'
 
 function EditorInner({
   ydoc,
@@ -85,7 +77,7 @@ function EditorInner({
   userName,
   userColor,
 }: EditorInnerProps) {
-   const myClientId = userId
+  const myClientId = userId
 
   const { contributions, recordTyping } = useContributionTracker(
     ydoc,
@@ -149,6 +141,9 @@ function EditorInner({
   )
 
   const editor = useEditor({ extensions })
+
+  // AI chat — reads the current document text on every send
+  const ai = useAiChat(() => editor?.getText() ?? '')
 
   if (!editor) return null
 
@@ -243,26 +238,41 @@ function EditorInner({
           <TabButton
             active={tab === 'contribution'}
             onClick={() => setTab('contribution')}
-            label="Contribution"
+            label="Contrib"
           />
           <TabButton
             active={tab === 'chat'}
             onClick={() => setTab('chat')}
             label={`Chat${messages.length > 0 ? ` (${messages.length})` : ''}`}
           />
+          <TabButton
+            active={tab === 'ai'}
+            onClick={() => setTab('ai')}
+            label="AI"
+          />
         </div>
 
         {/* Tab content */}
         <div className="flex-1 overflow-hidden">
-          {tab === 'contribution' ? (
+          {tab === 'contribution' && (
             <div className="h-full overflow-y-auto">
               <ContributionPanel contributions={contributions} />
             </div>
-          ) : (
+          )}
+          {tab === 'chat' && (
             <ChatPanel
               messages={messages}
               onSend={sendMessage}
               myClientId={myClientId}
+            />
+          )}
+          {tab === 'ai' && (
+            <AiPanel
+              messages={ai.messages}
+              streaming={ai.streaming}
+              error={ai.error}
+              onSend={ai.send}
+              onClear={ai.clear}
             />
           )}
         </div>

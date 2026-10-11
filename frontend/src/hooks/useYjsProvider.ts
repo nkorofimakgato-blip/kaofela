@@ -17,7 +17,8 @@ interface UseYjsProviderResult {
  */
 export function useYjsProvider(
   roomId: string,
-  userName: string
+  userName: string,
+  userColor: string
 ): UseYjsProviderResult {
   const [ydoc, setYdoc] = useState<Y.Doc | null>(null)
   const [provider, setProvider] = useState<WebsocketProvider | null>(null)
@@ -40,9 +41,9 @@ export function useYjsProvider(
     )
 
     // Set user info — used for awareness/cursors in Phase 4
-    ws.awareness.setLocalStateField('user', {
+        ws.awareness.setLocalStateField('user', {
       name: userName,
-      color: randomColor(),
+      color: userColor,
     })
 
     ws.on('status', (event: { status: string }) => {
@@ -63,7 +64,7 @@ export function useYjsProvider(
       ws.destroy()
       doc.destroy()
     }
-  }, [roomId, userName])
+    }, [roomId, userName, userColor])
 
   return { ydoc, provider, connected }
 }

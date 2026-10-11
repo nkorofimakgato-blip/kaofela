@@ -1,42 +1,6 @@
-import { useState } from 'react'
+import { useMemo } from 'react'
 
-const SID_KEY = 'kaofela.sessionId'
-const NAME_KEY = 'kaofela.name'
-const COLOR_KEY = 'kaofela.color'
-
-const PALETTE = [
-  '#22d3ee',
-  '#a78bfa',
-  '#f472b6',
-  '#34d399',
-  '#fbbf24',
-  '#fb7185',
-  '#60a5fa',
-]
-
-function randomId(): string {
-  return `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-}
-
-function randomName(): string {
-  return `User-${Math.floor(Math.random() * 1000)}`
-}
-
-function randomColor(): string {
-  return PALETTE[Math.floor(Math.random() * PALETTE.length)]
-}
-
-function getOrSet(key: string, create: () => string): string {
-  try {
-    const existing = sessionStorage.getItem(key)
-    if (existing) return existing
-    const value = create()
-    sessionStorage.setItem(key, value)
-    return value
-  } catch {
-    return create()
-  }
-}
+const STORAGE_KEY = 'kaofela:identity:v1'
 
 export interface Identity {
   userId: string
@@ -44,21 +8,76 @@ export interface Identity {
   color: string
 }
 
-/**
- * Per-tab, persistent identity.
- *
- * Uses sessionStorage, so:
- *   - Reload the tab → same identity (name, color, userId)
- *   - Open a second tab → different identity
- *   - Close the tab → identity is gone
- *
- * When we add auth (Phase 9), we'll swap this out for the logged-in user.
- */
+const COLORS = [
+  '#22d3ee', // cyan
+  '#a78bfa', // violet
+  '#f472b6', // pink
+  '#facc15', // yellow
+  '#4ade80', // green
+  '#fb923c', // orange
+  '#60a5fa', // blue
+  '#f87171', // red
+]
+
+function makeUuid(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  // Fallback for older browsers / non-secure contexts
+  return (
+    Math.random().toString(36).slice(2) +
+    Date.now().toString(36) +
+    Math.random().toString(36).slice(2)
+  )
+}
+
+function generateIdentity(): Identity {
+  return {
+    userId: makeUuid(),
+    name: `User-${Math.floor(1000 + Math.random() * 9000)}`,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+  }
+}
+
+function loadStored(): Identity | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<Identity>
+    if (
+      typeof parsed.userId === 'string' &&
+      typeof parsed.name === 'string' &&
+      typeof parsed.color === 'string'
+    ) {
+      return parsed as Identity
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
 export function useIdentity(): Identity {
-  const [identity] = useState<Identity>(() => ({
-    userId: getOrSet(SID_KEY, randomId),
-    name: getOrSet(NAME_KEY, randomName),
-    color: getOrSet(COLOR_KEY, randomColor),
-  }))
-  return identity
+  return useMemo(() => {
+    const stored = loadStored()
+    if (stored) return stored
+
+    const fresh = generateIdentity()
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh))
+    } catch {
+      /* ignore */
+    }
+    return fresh
+  }, [])
+}
+
+/** Clears the stored identity so the next load generates a new one. */
+export function resetIdentity() {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
 }

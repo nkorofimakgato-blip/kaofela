@@ -90,11 +90,12 @@ function EditorInner({
 }: EditorInnerProps) {
   const myClientId = userId
 
-  const { contributions, recordTyping } = useContributionTracker(
-    ydoc,
-    userName,
-    userColor
-  )
+const { contributions, recordTyping } = useContributionTracker(
+  ydoc,
+  userId,
+  userName,
+  userColor
+)
   const { messages, sendMessage } = useChat(
     ydoc,
     myClientId,

@@ -20,16 +20,15 @@ interface ContributionEntry {
   lastActiveAt: number
 }
 
-// If a user pauses for more than this, we don't count the idle time
 const ACTIVE_SESSION_THRESHOLD_MS = 30_000
 
 export function useContributionTracker(
   ydoc: Y.Doc,
+  myUserId: string,
   myName: string,
   myColor: string
 ) {
   const [contributions, setContributions] = useState<Contribution[]>([])
-  const myClientId = String(ydoc.clientID)
 
   const map = ydoc.getMap<ContributionEntry>('contributions')
 
@@ -38,19 +37,19 @@ export function useContributionTracker(
       const list: Contribution[] = []
       let totalChars = 0
 
-     map.forEach((value, key) => {
-  totalChars += value.insertedChars
-  list.push({
-    clientId: key,
-    name: value.name,
-    color: value.color,
-    insertedChars: value.insertedChars,
-    activeMs: value.activeMs,
-    percentage: 0,
-    isMe: key === myClientId,
-    lastActiveAt: value.lastActiveAt,
-  })
-})
+      map.forEach((value, key) => {
+        totalChars += value.insertedChars
+        list.push({
+          clientId: key,
+          name: value.name,
+          color: value.color,
+          insertedChars: value.insertedChars,
+          activeMs: value.activeMs,
+          percentage: 0,
+          isMe: key === myUserId,
+          lastActiveAt: value.lastActiveAt,
+        })
+      })
 
       list.forEach((c) => {
         c.percentage =
@@ -65,7 +64,7 @@ export function useContributionTracker(
     update()
 
     return () => map.unobserve(update)
-  }, [map, myClientId])
+  }, [map, myUserId])
 
   const recordTyping = useCallback(
     (chars: number) => {
@@ -73,7 +72,7 @@ export function useContributionTracker(
       const now = Date.now()
 
       ydoc.transact(() => {
-        const existing: ContributionEntry = map.get(myClientId) || {
+        const existing: ContributionEntry = map.get(myUserId) || {
           name: myName,
           color: myColor,
           insertedChars: 0,
@@ -85,7 +84,7 @@ export function useContributionTracker(
         const additionalMs =
           gap > 0 && gap < ACTIVE_SESSION_THRESHOLD_MS ? gap : 0
 
-        map.set(myClientId, {
+        map.set(myUserId, {
           ...existing,
           name: myName,
           color: myColor,
@@ -95,7 +94,7 @@ export function useContributionTracker(
         })
       })
     },
-    [ydoc, map, myClientId, myName, myColor]
+    [ydoc, map, myUserId, myName, myColor]
   )
 
   return { contributions, recordTyping }

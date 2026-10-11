@@ -8,6 +8,11 @@ interface UseYjsProviderResult {
   connected: boolean
 }
 
+// In dev: ws://localhost:8080/ws
+// In prod: set VITE_WS_URL in Vercel's env vars, e.g. wss://kaofela-production.up.railway.app/ws
+const WS_BASE_URL: string =
+  import.meta.env.VITE_WS_URL ?? 'ws://localhost:8080/ws'
+
 export function useYjsProvider(
   roomId: string,
   userName: string,
@@ -22,20 +27,13 @@ export function useYjsProvider(
     let doc: Y.Doc | null = null
     let ws: WebsocketProvider | null = null
 
-    // Delay the connection slightly so React StrictMode's dev-mode
-    // double-mount doesn't create-then-immediately-destroy a socket.
     const timer = setTimeout(() => {
       if (disposed) return
 
       console.log('[yjs] creating doc for room:', roomId)
 
       doc = new Y.Doc()
-      ws = new WebsocketProvider(
-        'ws://localhost:8080/ws',
-        roomId,
-        doc,
-        { connect: true }
-      )
+      ws = new WebsocketProvider(WS_BASE_URL, roomId, doc, { connect: true })
 
       ws.awareness.setLocalStateField('user', {
         name: userName,

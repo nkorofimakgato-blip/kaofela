@@ -10,7 +10,7 @@ Kaofela is a browser-based collaborative writing tool built from scratch on Yjs 
 
 
 
-\*\*\[Live demo](#)\*\* ← \*placeholder — swap in your Vercel URL after Phase 8D\*
+**[Live demo](https://kaofela.vercel.app)** ← open in two windows
 
 
 
